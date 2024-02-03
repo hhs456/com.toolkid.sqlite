@@ -31,11 +31,8 @@ public class DataKeeperEditor : Editor
         string filePath = databasePath.stringValue + "/" + databaseName.stringValue + ".db";
         if (GUILayout.Button("Create Database")) {
             databasePath.stringValue = EditorUtility.OpenFolderPanel("請選擇資料庫儲存位置", Application.dataPath, "");
-            filePath = databasePath.stringValue + "/" + databaseName.stringValue + ".db";
-            if (!File.Exists(filePath)) {
-                File.Create(filePath).Close();
-            }
-            DatabaseUtility.Create<DataSample>(filePath);
+            filePath = databasePath.stringValue + "/" + databaseName.stringValue + ".db";            
+            DatabaseUtility.CreateTable<DataSample>(filePath);
         }
         if (GUILayout.Button("Insert Database")) {
             DatabaseUtility.Insert(filePath, new DataSample() {
@@ -48,7 +45,7 @@ public class DataKeeperEditor : Editor
             if (!File.Exists(filePath)) {
                 File.Create(filePath).Close();
             }
-            DatabaseUtility.Create<DataSample>(filePath);
+            DatabaseUtility.CreateTable<DataSample>(filePath);
         }
         if (GUILayout.Button("Query Database")) {
             //script.dataSamples = DatabaseUtility.Query<DataSample>(filePath).ToArray();

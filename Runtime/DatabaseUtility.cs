@@ -2,49 +2,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using System.Data;
 using System.Reflection;
 using Mono.Data.Sqlite;
 using System.Text;
 using UnityEngine.UIElements;
 using static UnityEngine.GraphicsBuffer;
+using static PlasticPipe.PlasticProtocol.Messages.NegotiationCommand;
+using System.IO;
+using System.Data;
 
 namespace Toolkid.SqliteWrapper {
-
-    public struct CommandParameter<T> {
-        public string[] columns;
-        public object[] values;
-        public readonly string paramText;
-        public readonly string equalText;
-        public readonly string valueText;
-
-        public CommandParameter(T target) {
-            PropertyInfo[] properties = target.GetType().GetProperties();
-            columns = new string[properties.Length];
-            values = new string[properties.Length];
-            for (int i = 0; i < properties.Length; i++) {
-                columns[i] = properties[i].GetColumnName();
-                values[i] = properties.GetValue(i);
-            }
-            this = new CommandParameter<T>(columns, values);
-        }
-        public CommandParameter(string[] columns, object[] values) {      
-            PropertyInfo[] properties = typeof(T).GetProperties();
-            this.columns = columns;
-            this.values = values;
-            paramText = string.Empty;
-            equalText = string.Empty;
-            valueText = string.Empty;
-            for (int i = 0; i < columns.Length; i++) {
-                paramText += $"{columns[i]},";
-                equalText += $"{columns[i]} = @{columns[i]} AND";
-                valueText += $"@{columns[i]},";
-            }
-            paramText = paramText.Remove(paramText.Length - 1);
-            equalText = equalText.Remove(equalText.Length - 5, 5);
-            valueText = valueText.Remove(valueText.Length - 1);
-        }
-    }
 
     public static class DatabaseUtility {
 
@@ -52,8 +19,7 @@ namespace Toolkid.SqliteWrapper {
             {typeof(int), "INTEGER"},
             {typeof(string), "TEXT"},
             {typeof(float), "REAL"},
-            {typeof(bool), "BOOLEAN"},
-            {typeof(byte), "BLOB"},
+            {typeof(bool), "BOOLEAN"},            
             {typeof(DateTime), "DATETIME"}
         };
 
@@ -94,6 +60,7 @@ namespace Toolkid.SqliteWrapper {
             return null;
         }
 
+
         public static void Connect(string databasePath, Action<SqliteCommand> action) {
             string connectionString = $"URI=file:{databasePath}";
             using (SqliteConnection connection = new SqliteConnection(connectionString)) {
@@ -106,9 +73,44 @@ namespace Toolkid.SqliteWrapper {
             }
         }
 
-        public static void Create<T>(string databasePath) where T : new() {
+        public static int Count<T>(string databasePath) where T : new() {           
+            return CountWith<T>(databasePath);
+        }
+
+        public static int CountWith<T>(string databasePath, Dictionary<string, object> conditions = null) where T : new() {
             string connectionString = $"URI=file:{databasePath}";
-            var properties = typeof(T).GetProperties();            
+            int rowCount = 0;
+            var whereBuilder = new StringBuilder();
+
+            if (conditions != null && conditions.Count > 0) {
+                whereBuilder.Append("WHERE ");
+                foreach (var condition in conditions) {
+                    whereBuilder.Append($"{condition.Key} = @{condition.Key} AND ");
+                }
+                whereBuilder.Length -= 5; // 刪除最後的 " AND "
+            }
+
+            Connect(databasePath, (command) => {
+                command.CommandText = $"SELECT COUNT(*) FROM {GetTableName(typeof(T))} {whereBuilder}";
+
+                if (conditions != null) {
+                    foreach (var condition in conditions) {
+                        command.Parameters.Add(new SqliteParameter($"@{condition.Key}", condition.Value));
+                    }
+                }
+
+                rowCount = Convert.ToInt32(command.ExecuteScalar());
+            });
+
+            return rowCount;
+        }
+        public static void CreateTable<T>(string databasePath) where T : new() {
+            if (!File.Exists(databasePath)) {
+                using (File.Create(databasePath)) { }
+            }
+
+            string connectionString = $"URI=file:{databasePath}";
+            var properties = typeof(T).GetProperties();
 
             var columnsBuilder = new StringBuilder();
             foreach (var p in properties) {
@@ -116,36 +118,52 @@ namespace Toolkid.SqliteWrapper {
                 columnsBuilder.Append(IsPrimaryKey(p) ? " PRIMARY KEY," : ",");
             }
 
-            columnsBuilder.Length--; // Remove the trailing comma
+            columnsBuilder.Length--; // 移除尾部的逗號
             string columns = columnsBuilder.ToString();
 
             Connect(databasePath, (command) => {
-                command.CommandText = $"CREATE TABLE IF NOT EXISTS {GetTableName(typeof(T))} ({columns})";                
+                command.CommandText = $"CREATE TABLE IF NOT EXISTS {GetTableName(typeof(T))} ({columns})";
             });
         }
 
-
-        public static void Update<T>(string databasePath, T target) where T : new() {
+        public static void DropTable<T>(string databasePath) where T : new() {
             string connectionString = $"URI=file:{databasePath}";
 
-            var properties = typeof(T).GetProperties();            
-            var primaryKey = typeof(T).FindPrimaryKey().GetColumnName();
+            Connect(databasePath, (command) => {
+                command.CommandText = $"DROP TABLE IF EXISTS {GetTableName(typeof(T))}";
+                command.ExecuteNonQuery();
+            });
+        }
+
+        public static void Update<T>(string databasePath, T target) where T : new() {
+            var properties = typeof(T).GetProperties();
+            var primaryKey = typeof(T).FindPrimaryKey().GetValue(target);
+
+            // Convert the object properties into a dictionary
+            var updates = properties.ToDictionary(p => GetColumnName(p), p => p.GetValue(target));
+
+            Update<T>(databasePath, primaryKey, updates);
+        }
+
+        public static void Update<T>(string databasePath, object primaryKey, Dictionary<string, object> updates) where T : new() {
+            string connectionString = $"URI=file:{databasePath}";
+
+            var primaryKeyColumn = typeof(T).FindPrimaryKey().GetColumnName();
             var equalsBuilder = new StringBuilder();
-            foreach (var p in properties) {
-                string columName = GetColumnName(p);
-                equalsBuilder.Append($"{columName} = @{columName},");
+            foreach (var update in updates) {
+                equalsBuilder.Append($"{update.Key} = @{update.Key},");
             }
             equalsBuilder.Length--;
 
             Connect(databasePath, (command) => {
-                command.CommandText = $"UPDATE {GetTableName(typeof(T))} SET {equalsBuilder} WHERE {primaryKey} = @{primaryKey}";
-                foreach (var p in properties) {
-                    string columnName = GetColumnName(p);
-                    command.Parameters.Add(new SqliteParameter($"@{columnName}", p.GetValue(target)));
+                command.CommandText = $"UPDATE {GetTableName(typeof(T))} SET {equalsBuilder} WHERE {primaryKeyColumn} = @{primaryKeyColumn}";
+                command.Parameters.Add(new SqliteParameter($"@{primaryKeyColumn}", primaryKey));
+                foreach (var update in updates) {
+                    command.Parameters.Add(new SqliteParameter($"@{update.Key}", update.Value));
                 }
             });
         }
-        
+
         public static void Insert<T>(string databasePath, T target) where T : new() {
             string connectionString = $"URI=file:{databasePath}";
             var properties = typeof(T).GetProperties();
@@ -167,18 +185,35 @@ namespace Toolkid.SqliteWrapper {
         }
 
         public static void Delete<T>(string databasePath, object primaryKey) where T : new() {
+            string primaryKeyColumnName = typeof(T).FindPrimaryKey().GetColumnName();
+
+            Dictionary<string, object> conditions = new Dictionary<string, object>
+            {
+                { primaryKeyColumnName, primaryKey }
+            };
+
+            Delete<T>(databasePath, conditions);
+        }
+
+        public static void Delete<T>(string databasePath, Dictionary<string, object> conditions = null) where T : new() {
             string connectionString = $"URI=file:{databasePath}";
             var properties = typeof(T).GetProperties();
-            var columnsBuilder = new StringBuilder();
-            var keyColumn = typeof(T).FindPrimaryKey().GetColumnName();
-            foreach (var p in properties) {
-                columnsBuilder.Append($"{GetColumnName(p)},");
+            var whereBuilder = new StringBuilder();
+
+            if (conditions != null && conditions.Count > 0) {
+                whereBuilder.Append("WHERE ");
+                foreach (var condition in conditions) {
+                    whereBuilder.Append($"{condition.Key} = @{condition.Key} AND ");
+                }
+                whereBuilder.Length -= 5; // 刪除最後的 " AND "
             }
-            columnsBuilder.Length--;
+
             Connect(databasePath, (command) => {
-                command.CommandText = $"DELETE FROM {GetTableName(typeof(T))} WHERE {keyColumn} = @{keyColumn}";
-                command.Parameters.Add(new SqliteParameter($"@{keyColumn}", primaryKey));
-                command.ExecuteNonQuery();
+                command.CommandText = $"DELETE FROM {GetTableName(typeof(T))} {whereBuilder}";
+
+                foreach (var condition in conditions) {
+                    command.Parameters.Add(new SqliteParameter($"@{condition.Key}", condition.Value));
+                }
             });
         }
 
@@ -211,6 +246,61 @@ namespace Toolkid.SqliteWrapper {
             });
 
             return result;
+        }
+
+        public static List<T> Select<T>(string databasePath, Dictionary<string, object> conditions = null) where T : new() {
+            string connectionString = $"URI=file:{databasePath}";
+            var result = new List<T>();
+            var whereBuilder = new StringBuilder();
+
+            if (conditions != null && conditions.Count > 0) {
+                whereBuilder.Append("WHERE ");
+                whereBuilder.Append(string.Join(" AND ", conditions.Select(condition => $"{condition.Key} = @{condition.Key}")));
+            }
+
+            Connect(databasePath, (command) => {
+                command.CommandText = $"SELECT * FROM {GetTableName(typeof(T))} {whereBuilder}";
+
+                if (conditions != null) {
+                    foreach (var condition in conditions) {
+                        command.Parameters.Add(new SqliteParameter($"@{condition.Key}", condition.Value));
+                    }
+                }
+
+                using (var reader = command.ExecuteReader()) {
+                    var properties = typeof(T).GetProperties();
+
+                    while (reader.Read()) {
+                        T item = new T();
+
+                        foreach (var p in properties) {
+                            var columnName = GetColumnName(p);
+                            if (reader.HasColumn(columnName)) {
+                                var value = reader[columnName];
+                                p.SetValue(item, value == DBNull.Value ? null : value);
+                            }
+                        }
+
+                        result.Add(item);
+                    }
+                }
+            });
+
+            return result;
+        }
+
+        // Helper method to check if the reader contains a specific column
+        public static bool HasColumn(this IDataReader reader, string columnName) {
+            for (int i = 0; i < reader.FieldCount; i++) {
+                if (reader.GetName(i).Equals(columnName, StringComparison.InvariantCultureIgnoreCase)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public static List<T> SelectAll<T>(string databasePath) where T : new() {            
+            return Select<T>(databasePath);
         }
     }
 }

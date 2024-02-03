@@ -1,8 +1,4 @@
 using System;
-using Mono.Data.Sqlite;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
 
 namespace Toolkid.SqliteWrapper {
     [AttributeUsage(AttributeTargets.Class)]
