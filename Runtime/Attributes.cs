@@ -4,7 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Toolkid.SqliteToolkits {
+namespace Toolkid.SqliteWrapper {
     [AttributeUsage(AttributeTargets.Class)]
     public class TableAttribute : Attribute {
         public string Name { get; }

@@ -1,9 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
-using Toolkid.SqliteToolkits;
+using Toolkid.SqliteWrapper;
 using UnityEditor;
 using UnityEditor.TerrainTools;
-using Unity.VisualScripting.Dependencies.Sqlite;
 using UnityEngine;
 using System;
 using System.IO;
@@ -52,7 +51,7 @@ public class DataKeeperEditor : Editor
             DatabaseUtility.Create<DataSample>(filePath);
         }
         if (GUILayout.Button("Query Database")) {
-            script.dataSamples = DatabaseUtility.Query<DataSample>(filePath).ToArray();
+            //script.dataSamples = DatabaseUtility.Query<DataSample>(filePath).ToArray();
             serializedObject.Update();
         }
 

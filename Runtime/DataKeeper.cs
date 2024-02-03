@@ -1,10 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using Unity.VisualScripting.Dependencies.Sqlite;
 using System;
 
-namespace Toolkid.SqliteToolkits {
+namespace Toolkid.SqliteWrapper {
 
     public class DataKeeper : MonoBehaviour {
         public string databasePath = string.Empty;
@@ -20,7 +19,7 @@ namespace Toolkid.SqliteToolkits {
     [Table(name: nameof(DataSample)), Serializable]
     public class DataSample {
 
-        [PrimaryKey, AutoIncrement]
+        [PrimaryKey/*, AutoIncrement*/]
         public int Id {
             get; set;
         }
