@@ -1,33 +1,83 @@
-# Toolkid.Bounds
+# SQLite Database Wrapper
 
-This repository provides a collection of extension methods for Bounds, including Collider, Renderer, Mesh, and more.
+A simple C# SQLite database wrapper with basic CRUD operations and transaction support.
 
-## Collider Maker
+## Table of Contents
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Connecting to a Database](#connecting-to-a-database)
+  - [Executing Transactions](#executing-transactions)
+  - [Inserting Data](#inserting-data)
+  - [Updating Data](#updating-data)
+  - [Deleting Data](#deleting-data)
+  - [Querying Data](#querying-data)
+- [Contributing](#contributing)
+- [License](#license)
 
-The **Collider Maker** allows you to add a consolidated collider to multiple models.
+## Installation
 
-### Usage
+Clone the repository or download the source code. Include the provided files in your C# project.
 
-1. Add `Collider Maker` to the object where you want to generate colliders.
-2. Drag the object containing all models to the `Meshes Base`.
-3. Click on the desired collider style (`Box` or `Sphere`).
+## Usage
 
-![Inspector](https://github.com/hhs456/Toolkid.BoundsUtility/blob/main/Description/inspector.jpg)
+### Connecting to a Database
 
-### Results
+```csharp
+string databasePath = "your_database_path.db";
+```
 
-1. **Box**
+### Executing Transactions
 
-![Multi Cube](https://github.com/hhs456/Toolkid.BoundsUtility/blob/main/Description/multiCube.jpg)
+```csharp
+try
+{
+    DatabaseUtility.ExecuteTransaction(databasePath, (transaction) =>
+    {
+        // Your database operations within the transaction
+    });
 
-2. **Sphere (Inside)**
+    Console.WriteLine("Transaction completed successfully.");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Transaction failed: {ex.Message}");
+}
+```
 
-![Inside Ball](https://github.com/hhs456/Toolkid.BoundsUtility/blob/main/Description/insideBall.jpg)
+### Inserting Data
 
-3. **Sphere (Outside)**
+```csharp
+Person newPerson = new Person { Name = "John Doe", Age = 30 };
 
-![Outside Ball](https://github.com/hhs456/Toolkid.BoundsUtility/blob/main/Description/outsideBall.jpg)
+DatabaseUtility.Insert(databasePath, newPerson);
+```
 
-### Notes
+### Updating Data
 
-Currently, effective only for objects with a `rotation` of (0, 0, 0). Please use with caution!
+```csharp
+newPerson.Age = 31;
+
+DatabaseUtility.Update(databasePath, newPerson.Id, newPerson);
+```
+
+### Deleting Data
+
+```csharp
+DatabaseUtility.Delete<Person>(databasePath, newPerson.Id);
+```
+
+### Querying Data
+
+```csharp
+Dictionary<string, object> conditions = new Dictionary<string, object> { { "Age", 30 } };
+
+List<Person> result = DatabaseUtility.Select<Person>(databasePath, conditions);
+```
+
+## Contributing
+
+Feel free to contribute to this project by opening issues or submitting pull requests.
+
+## License
+
+This project is licensed under the MIT License.
