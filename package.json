@@ -1,6 +1,6 @@
 {
-  "name": "com.toolkid.sqlitewrapper",
-  "displayName": "Toolkid.SqliteWrapper",
+  "name": "com.toolkid.sqlite",
+  "displayName": "Toolkid.Sqlite",
   "version": "0.0.0",
   "unity": "2022.3",
   "description": "A Unity package for using the SQLite API",
@@ -12,7 +12,7 @@
   "samples": [
     {}
   ],
-  "url": "https://example.com/my-sqlite-api",
+  "url": "https://github.com/hhs456/com.toolkid.sqlite.git",
   "author": "Hanson",
   "license": "MIT",
   "supportedPlatforms": [
